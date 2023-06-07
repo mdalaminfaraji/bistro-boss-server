@@ -57,9 +57,27 @@ async function run() {
       const token=jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn:'1h'});
       res.send({token});
     })
+
+    const verifyAdmin=async (req, res, next) => {
+      const email=req.decoded.email;
+      const query={email:email};
+      const user=await userCollection.findOne(query);
+      if(user?.role!=='admin'){
+        return res.status(403).send({error:true, message:'forbidden message'}); 
+      }
+      next();
+    }
+
+
+    /**
+     * 0.do not secure links to those who should not see the links
+     * 1.use jwt token: verifyJWT
+     * 3. use verifyAdmin midddleware
+     * 
+     */
     // user related apis
     
-    app.get("/users",async (req, res) => {
+    app.get("/users",verifyJWT,verifyAdmin,async (req, res) => {
       const result=await userCollection.find().toArray();
       res.send(result); 
     })
@@ -76,7 +94,7 @@ async function run() {
       const result=await userCollection.insertOne(user);
       res.send(result);
     })
-    
+
     // security layer: verifyJWT
     // email same
     // check admin
@@ -109,6 +127,19 @@ async function run() {
     app.get('/menu', async(req, res)=>{
         const result=await menuCollection.find().toArray();
         res.send(result);
+    })
+
+    app.post('/menu',verifyJWT, verifyAdmin, async(req, res)=>{
+      const newItem=req.body;
+      const result=await menuCollection.insertOne(newItem);
+      res.send(result);
+    })
+
+    app.delete('/menu/:id',verifyJWT,verifyAdmin, async(req, res)=>{
+      const id=req.params.id;
+      const query={$or:[{_id:id},{_id:new ObjectId(id)}]};
+      const result=await menuCollection.deleteOne(query);
+      res.send(result);
     })
      //review related apis
     app.get('/reviews', async(req, res)=>{
